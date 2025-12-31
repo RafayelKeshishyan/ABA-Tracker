@@ -1,0 +1,71 @@
+/* ABA Tracker - Styling */
+
+:root {
+    --primary: #6C63FF;
+    --primary-dark: #5A52D9;
+    --secondary: #FF6B9D;
+    --secondary-dark: #E55A89;
+    --accent-yellow: #FFD93D;
+    --accent-green: #6BCB77;
+    --accent-blue: #4D96FF;
+    --accent-orange: #FF8B3D;
+    --background: #F0F4FF;
+    --card-bg: #FFFFFF;
+    --text-dark: #2D3748;
+    --text-muted: #718096;
+    --border: #E2E8F0;
+    --shadow: rgba(108, 99, 255, 0.15);
+    --shadow-hover: rgba(108, 99, 255, 0.25);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Nunito', sans-serif;
+    background: linear-gradient(135deg, var(--background) 0%, #E8EEFF 100%);
+    min-height: 100vh;
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+/* Header */
+header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    color: white;
+    text-align: center;
+    padding: 2rem 1rem;
+    box-shadow: 0 4px 20px var(--shadow);
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 0.25rem;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+
+header .subtitle {
+    font-size: 1.1rem;
+    opacity: 0.95;
+    font-weight: 600;
+}
+
+/* Main Content */
+main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
