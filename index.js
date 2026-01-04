@@ -8,15 +8,31 @@ let studentIdCounter = 1;
 const studentForm = document.getElementById('studentForm');
 const studentNameInput = document.getElementById('studentName');
 const studentGradeSelect = document.getElementById('studentGrade');
+const selectStudentDropdown = document.getElementById('selectStudent');
 const studentsContainer = document.getElementById('studentsContainer');
+
+// Incident form fields
+const incidentForm = document.getElementById('incidentForm');
+const incidentWhen = document.getElementById('incidentWhen');
 
 // Initialize the app
 function init() {
+    // Set default datetime to now
+    setDefaultDateTime();
+    
     // Add event listeners
     studentForm.addEventListener('submit', handleAddStudent);
     
     // Initial render
     displayStudents();
+}
+
+// Set default datetime to current time
+function setDefaultDateTime() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const localISOTime = new Date(now.getTime() - offset * 60 * 1000).toISOString().slice(0, 16);
+    incidentWhen.value = localISOTime;
 }
 
 // Generate unique ID
@@ -52,10 +68,24 @@ function handleAddStudent(e) {
     studentForm.reset();
     
     // Update UI
+    updateStudentDropdown();
     displayStudents();
     
     // Show success feedback
     showSuccessAnimation(studentForm.querySelector('.btn'));
+}
+
+// Update the student dropdown
+function updateStudentDropdown() {
+    // Keep the first option
+    selectStudentDropdown.innerHTML = '<option value="">Choose a student...</option>';
+    
+    students.forEach(student => {
+        const option = document.createElement('option');
+        option.value = student.id;
+        option.textContent = `${student.name} (${student.grade})`;
+        selectStudentDropdown.appendChild(option);
+    });
 }
 
 // Display all students

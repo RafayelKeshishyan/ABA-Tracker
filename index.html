@@ -48,6 +48,71 @@
                     <button type="submit" class="btn btn-primary">Add Student</button>
                 </form>
             </section>
+
+            <!-- Record Incident Section -->
+            <section class="form-card incident-form">
+                <h2>📝 Record an Incident</h2>
+                <form id="incidentForm">
+                    <div class="form-group">
+                        <label for="selectStudent">Select Student</label>
+                        <select id="selectStudent" required>
+                            <option value="">Choose a student...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="incidentWhen">🕐 When</label>
+                            <input type="datetime-local" id="incidentWhen" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="incidentWhere">📍 Where</label>
+                            <select id="incidentWhere" required>
+                                <option value="">Select location...</option>
+                                <option value="Classroom">Classroom</option>
+                                <option value="Hallway">Hallway</option>
+                                <option value="Cafeteria">Cafeteria</option>
+                                <option value="Playground">Playground</option>
+                                <option value="Gym">Gym</option>
+                                <option value="Library">Library</option>
+                                <option value="Restroom">Restroom</option>
+                                <option value="Bus">Bus</option>
+                                <option value="Office">Office</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="abc-section">
+                        <h3>ABC Data</h3>
+                        <div class="form-group">
+                            <label for="antecedent">🅰️ Antecedent <span class="hint">(What happened before?)</span></label>
+                            <textarea id="antecedent" rows="2" placeholder="Describe what happened before the behavior..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="behavior">🅱️ Behavior <span class="hint">(What did the student do?)</span></label>
+                            <textarea id="behavior" rows="2" placeholder="Describe the behavior observed..." required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="consequence">©️ Consequence <span class="hint">(What happened after?)</span></label>
+                            <textarea id="consequence" rows="2" placeholder="Describe what happened after the behavior..." required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="additional-section">
+                        <div class="form-group">
+                            <label for="intervention">💡 Intervention Used</label>
+                            <textarea id="intervention" rows="2" placeholder="What intervention was used? (optional)"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes">📌 Additional Notes</label>
+                            <textarea id="notes" rows="2" placeholder="Any other observations or notes... (optional)"></textarea>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-secondary">Record Incident</button>
+                </form>
+            </section>
         </div>
 
         <!-- Students Display Section -->
