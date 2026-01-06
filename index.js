@@ -1,5 +1,8 @@
 // ABA Tracker - Student Behavior Tracking Application
 
+// LocalStorage key
+const STORAGE_KEY = 'aba_tracker_data';
+
 // In-memory data storage
 let students = [];
 let studentIdCounter = 1;
@@ -24,6 +27,9 @@ const notesInput = document.getElementById('notes');
 
 // Initialize the app
 function init() {
+    // Load data from localStorage
+    loadFromStorage();
+    
     // Set default datetime to now
     setDefaultDateTime();
     
@@ -31,11 +37,39 @@ function init() {
     studentForm.addEventListener('submit', handleAddStudent);
     incidentForm.addEventListener('submit', handleAddIncident);
     
-    // Initial render
+    // Update UI
+    updateStudentDropdown();
     displayStudents();
 }
 
-// Set default datetime to current time
+// ==================== LocalStorage Functions ====================
+
+function saveToStorage() {
+    const data = {
+        students: students,
+        studentIdCounter: studentIdCounter,
+        incidentIdCounter: incidentIdCounter
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadFromStorage() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+        try {
+            const data = JSON.parse(stored);
+            students = data.students || [];
+            studentIdCounter = data.studentIdCounter || 1;
+            incidentIdCounter = data.incidentIdCounter || 1;
+        } catch (e) {
+            console.error('Error loading data from storage:', e);
+            students = [];
+        }
+    }
+}
+
+// ==================== Utility Functions ====================
+
 function setDefaultDateTime() {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -43,7 +77,6 @@ function setDefaultDateTime() {
     incidentWhen.value = localISOTime;
 }
 
-// Generate unique ID
 function generateId(type) {
     if (type === 'student') {
         return `student_${studentIdCounter++}`;
@@ -51,7 +84,34 @@ function generateId(type) {
     return `incident_${incidentIdCounter++}`;
 }
 
-// Add a new student
+function formatDateTime(dateTimeStr) {
+    const date = new Date(dateTimeStr);
+    const options = { 
+        weekday: 'short',
+        month: 'short', 
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    };
+    return date.toLocaleDateString('en-US', options);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showSuccessAnimation(button) {
+    button.classList.add('success-animation');
+    setTimeout(() => {
+        button.classList.remove('success-animation');
+    }, 300);
+}
+
+// ==================== Student Functions ====================
+
 function handleAddStudent(e) {
     e.preventDefault();
     
@@ -71,6 +131,7 @@ function handleAddStudent(e) {
     };
     
     students.push(newStudent);
+    saveToStorage();
     
     // Clear form
     studentForm.reset();
@@ -83,7 +144,8 @@ function handleAddStudent(e) {
     showSuccessAnimation(studentForm.querySelector('.btn'));
 }
 
-// Add an incident to a student
+// ==================== Incident Functions ====================
+
 function handleAddIncident(e) {
     e.preventDefault();
     
@@ -119,6 +181,7 @@ function handleAddIncident(e) {
     };
     
     student.incidents.push(newIncident);
+    saveToStorage();
     
     // Clear form (except student selection)
     antecedentInput.value = '';
@@ -136,9 +199,9 @@ function handleAddIncident(e) {
     showSuccessAnimation(incidentForm.querySelector('.btn'));
 }
 
-// Update the student dropdown
+// ==================== UI Functions ====================
+
 function updateStudentDropdown() {
-    // Keep the first option
     selectStudentDropdown.innerHTML = '<option value="">Choose a student...</option>';
     
     students.forEach(student => {
@@ -149,7 +212,6 @@ function updateStudentDropdown() {
     });
 }
 
-// Display all students and their incidents
 function displayStudents() {
     if (students.length === 0) {
         studentsContainer.innerHTML = `
@@ -164,7 +226,6 @@ function displayStudents() {
     studentsContainer.innerHTML = students.map(student => createStudentCard(student)).join('');
 }
 
-// Create a student card HTML
 function createStudentCard(student) {
     const incidentCount = student.incidents.length;
     const incidentsHTML = student.incidents.length > 0 
@@ -189,7 +250,6 @@ function createStudentCard(student) {
     `;
 }
 
-// Create an incident card HTML
 function createIncidentCard(incident) {
     const formattedDate = formatDateTime(incident.when);
     
@@ -234,35 +294,6 @@ function createIncidentCard(incident) {
             </div>
         </div>
     `;
-}
-
-// Format datetime for display
-function formatDateTime(dateTimeStr) {
-    const date = new Date(dateTimeStr);
-    const options = { 
-        weekday: 'short',
-        month: 'short', 
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    };
-    return date.toLocaleDateString('en-US', options);
-}
-
-// Escape HTML to prevent XSS
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Show success animation on button
-function showSuccessAnimation(button) {
-    button.classList.add('success-animation');
-    setTimeout(() => {
-        button.classList.remove('success-animation');
-    }, 300);
 }
 
 // Initialize when DOM is loaded
