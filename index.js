@@ -8,6 +8,10 @@ let students = [];
 let studentIdCounter = 1;
 let incidentIdCounter = 1;
 
+// Edit mode state
+let editingStudentId = null;
+let editingIncidentId = null;
+
 // DOM Elements
 const studentForm = document.getElementById('studentForm');
 const incidentForm = document.getElementById('incidentForm');
@@ -25,6 +29,26 @@ const consequenceInput = document.getElementById('consequence');
 const interventionInput = document.getElementById('intervention');
 const notesInput = document.getElementById('notes');
 
+// Modal elements
+const editModal = document.getElementById('editModal');
+const editModalTitle = document.getElementById('editModalTitle');
+const editForm = document.getElementById('editForm');
+const closeModalBtn = document.getElementById('closeModal');
+const cancelEditBtn = document.getElementById('cancelEdit');
+
+// Edit form fields
+const editStudentName = document.getElementById('editStudentName');
+const editStudentGrade = document.getElementById('editStudentGrade');
+const editStudentFields = document.getElementById('editStudentFields');
+const editIncidentFields = document.getElementById('editIncidentFields');
+const editIncidentWhen = document.getElementById('editIncidentWhen');
+const editIncidentWhere = document.getElementById('editIncidentWhere');
+const editAntecedent = document.getElementById('editAntecedent');
+const editBehavior = document.getElementById('editBehavior');
+const editConsequence = document.getElementById('editConsequence');
+const editIntervention = document.getElementById('editIntervention');
+const editNotes = document.getElementById('editNotes');
+
 // Initialize the app
 function init() {
     // Load data from localStorage
@@ -36,6 +60,21 @@ function init() {
     // Add event listeners
     studentForm.addEventListener('submit', handleAddStudent);
     incidentForm.addEventListener('submit', handleAddIncident);
+    editForm.addEventListener('submit', handleEditSave);
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelEditBtn.addEventListener('click', closeModal);
+    
+    // Close modal when clicking outside
+    editModal.addEventListener('click', (e) => {
+        if (e.target === editModal) closeModal();
+    });
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && editModal.classList.contains('active')) {
+            closeModal();
+        }
+    });
     
     // Update UI
     updateStudentDropdown();
@@ -65,6 +104,17 @@ function loadFromStorage() {
             console.error('Error loading data from storage:', e);
             students = [];
         }
+    }
+}
+
+function clearAllData() {
+    if (confirm('Are you sure you want to delete ALL data? This cannot be undone!')) {
+        students = [];
+        studentIdCounter = 1;
+        incidentIdCounter = 1;
+        saveToStorage();
+        updateStudentDropdown();
+        displayStudents();
     }
 }
 
@@ -144,6 +194,43 @@ function handleAddStudent(e) {
     showSuccessAnimation(studentForm.querySelector('.btn'));
 }
 
+function editStudent(studentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    
+    editingStudentId = studentId;
+    editingIncidentId = null;
+    
+    // Set modal for student editing
+    editModalTitle.textContent = 'Edit Student';
+    editStudentFields.style.display = 'block';
+    editIncidentFields.style.display = 'none';
+    
+    // Populate fields
+    editStudentName.value = student.name;
+    editStudentGrade.value = student.grade;
+    
+    // Show modal
+    editModal.classList.add('active');
+}
+
+function deleteStudent(studentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    
+    const incidentCount = student.incidents.length;
+    const message = incidentCount > 0 
+        ? `Delete "${student.name}" and their ${incidentCount} incident(s)? This cannot be undone!`
+        : `Delete "${student.name}"? This cannot be undone!`;
+    
+    if (confirm(message)) {
+        students = students.filter(s => s.id !== studentId);
+        saveToStorage();
+        updateStudentDropdown();
+        displayStudents();
+    }
+}
+
 // ==================== Incident Functions ====================
 
 function handleAddIncident(e) {
@@ -199,6 +286,88 @@ function handleAddIncident(e) {
     showSuccessAnimation(incidentForm.querySelector('.btn'));
 }
 
+function editIncident(studentId, incidentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    
+    const incident = student.incidents.find(i => i.id === incidentId);
+    if (!incident) return;
+    
+    editingStudentId = studentId;
+    editingIncidentId = incidentId;
+    
+    // Set modal for incident editing
+    editModalTitle.textContent = 'Edit Incident';
+    editStudentFields.style.display = 'none';
+    editIncidentFields.style.display = 'block';
+    
+    // Populate fields
+    editIncidentWhen.value = incident.when;
+    editIncidentWhere.value = incident.where;
+    editAntecedent.value = incident.antecedent;
+    editBehavior.value = incident.behavior;
+    editConsequence.value = incident.consequence;
+    editIntervention.value = incident.intervention || '';
+    editNotes.value = incident.notes || '';
+    
+    // Show modal
+    editModal.classList.add('active');
+}
+
+function deleteIncident(studentId, incidentId) {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+    
+    if (confirm('Delete this incident? This cannot be undone!')) {
+        student.incidents = student.incidents.filter(i => i.id !== incidentId);
+        saveToStorage();
+        displayStudents();
+    }
+}
+
+// ==================== Modal Functions ====================
+
+function handleEditSave(e) {
+    e.preventDefault();
+    
+    if (editingIncidentId) {
+        // Editing an incident
+        const student = students.find(s => s.id === editingStudentId);
+        if (!student) return;
+        
+        const incident = student.incidents.find(i => i.id === editingIncidentId);
+        if (!incident) return;
+        
+        incident.when = editIncidentWhen.value;
+        incident.where = editIncidentWhere.value;
+        incident.antecedent = editAntecedent.value.trim();
+        incident.behavior = editBehavior.value.trim();
+        incident.consequence = editConsequence.value.trim();
+        incident.intervention = editIntervention.value.trim();
+        incident.notes = editNotes.value.trim();
+        
+    } else if (editingStudentId) {
+        // Editing a student
+        const student = students.find(s => s.id === editingStudentId);
+        if (!student) return;
+        
+        student.name = editStudentName.value.trim();
+        student.grade = editStudentGrade.value;
+    }
+    
+    saveToStorage();
+    updateStudentDropdown();
+    displayStudents();
+    closeModal();
+}
+
+function closeModal() {
+    editModal.classList.remove('active');
+    editingStudentId = null;
+    editingIncidentId = null;
+    editForm.reset();
+}
+
 // ==================== UI Functions ====================
 
 function updateStudentDropdown() {
@@ -229,7 +398,7 @@ function displayStudents() {
 function createStudentCard(student) {
     const incidentCount = student.incidents.length;
     const incidentsHTML = student.incidents.length > 0 
-        ? student.incidents.map(incident => createIncidentCard(incident)).join('')
+        ? student.incidents.map(incident => createIncidentCard(student.id, incident)).join('')
         : '<p class="no-incidents">No incidents recorded yet.</p>';
     
     return `
@@ -239,8 +408,14 @@ function createStudentCard(student) {
                     <h3>👤 ${escapeHtml(student.name)}</h3>
                     <span class="student-grade">${escapeHtml(student.grade)}</span>
                 </div>
-                <div class="incident-count">
-                    ${incidentCount} incident${incidentCount !== 1 ? 's' : ''}
+                <div class="student-actions">
+                    <span class="incident-count">${incidentCount} incident${incidentCount !== 1 ? 's' : ''}</span>
+                    <button class="btn-icon btn-edit" onclick="editStudent('${student.id}')" title="Edit Student">
+                        ✏️
+                    </button>
+                    <button class="btn-icon btn-delete" onclick="deleteStudent('${student.id}')" title="Delete Student">
+                        🗑️
+                    </button>
                 </div>
             </div>
             <div class="incidents-list">
@@ -250,7 +425,7 @@ function createStudentCard(student) {
     `;
 }
 
-function createIncidentCard(incident) {
+function createIncidentCard(studentId, incident) {
     const formattedDate = formatDateTime(incident.when);
     
     let additionalFields = '';
@@ -273,9 +448,19 @@ function createIncidentCard(incident) {
     
     return `
         <div class="incident-card">
-            <div class="incident-meta">
-                <span>🕐 ${formattedDate}</span>
-                <span>📍 ${escapeHtml(incident.where)}</span>
+            <div class="incident-header">
+                <div class="incident-meta">
+                    <span>🕐 ${formattedDate}</span>
+                    <span>📍 ${escapeHtml(incident.where)}</span>
+                </div>
+                <div class="incident-actions">
+                    <button class="btn-icon btn-edit-small" onclick="editIncident('${studentId}', '${incident.id}')" title="Edit Incident">
+                        ✏️
+                    </button>
+                    <button class="btn-icon btn-delete-small" onclick="deleteIncident('${studentId}', '${incident.id}')" title="Delete Incident">
+                        🗑️
+                    </button>
+                </div>
             </div>
             <div class="incident-abc">
                 <div class="abc-item">
@@ -298,4 +483,3 @@ function createIncidentCard(incident) {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
-

@@ -127,6 +127,96 @@
         </section>
     </main>
 
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="editModalTitle">Edit</h2>
+                <button id="closeModal" class="modal-close" type="button">&times;</button>
+            </div>
+            <form id="editForm">
+                <!-- Student Edit Fields -->
+                <div id="editStudentFields">
+                    <div class="form-group">
+                        <label for="editStudentName">Student Name</label>
+                        <input type="text" id="editStudentName" placeholder="Enter student name">
+                    </div>
+                    <div class="form-group">
+                        <label for="editStudentGrade">Grade</label>
+                        <select id="editStudentGrade">
+                            <option value="">Select grade...</option>
+                            <option value="Pre-K">Pre-K</option>
+                            <option value="Kindergarten">Kindergarten</option>
+                            <option value="1st Grade">1st Grade</option>
+                            <option value="2nd Grade">2nd Grade</option>
+                            <option value="3rd Grade">3rd Grade</option>
+                            <option value="4th Grade">4th Grade</option>
+                            <option value="5th Grade">5th Grade</option>
+                            <option value="6th Grade">6th Grade</option>
+                            <option value="7th Grade">7th Grade</option>
+                            <option value="8th Grade">8th Grade</option>
+                            <option value="9th Grade">9th Grade</option>
+                            <option value="10th Grade">10th Grade</option>
+                            <option value="11th Grade">11th Grade</option>
+                            <option value="12th Grade">12th Grade</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Incident Edit Fields -->
+                <div id="editIncidentFields" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editIncidentWhen">🕐 When</label>
+                            <input type="datetime-local" id="editIncidentWhen">
+                        </div>
+                        <div class="form-group">
+                            <label for="editIncidentWhere">📍 Where</label>
+                            <select id="editIncidentWhere">
+                                <option value="">Select location...</option>
+                                <option value="Classroom">Classroom</option>
+                                <option value="Hallway">Hallway</option>
+                                <option value="Cafeteria">Cafeteria</option>
+                                <option value="Playground">Playground</option>
+                                <option value="Gym">Gym</option>
+                                <option value="Library">Library</option>
+                                <option value="Restroom">Restroom</option>
+                                <option value="Bus">Bus</option>
+                                <option value="Office">Office</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAntecedent">🅰️ Antecedent</label>
+                        <textarea id="editAntecedent" rows="2" placeholder="Describe what happened before the behavior..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editBehavior">🅱️ Behavior</label>
+                        <textarea id="editBehavior" rows="2" placeholder="Describe the behavior observed..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editConsequence">©️ Consequence</label>
+                        <textarea id="editConsequence" rows="2" placeholder="Describe what happened after the behavior..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editIntervention">💡 Intervention Used</label>
+                        <textarea id="editIntervention" rows="2" placeholder="What intervention was used? (optional)"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editNotes">📌 Additional Notes</label>
+                        <textarea id="editNotes" rows="2" placeholder="Any other observations or notes... (optional)"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="cancelEdit" class="btn btn-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-save">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <footer>
         <p>Made with ❤️ for Special Education Heroes</p>
         <p class="storage-note">💾 Data is saved automatically in your browser</p>
@@ -135,4 +225,3 @@
     <script src="index.js"></script>
 </body>
 </html>
-
