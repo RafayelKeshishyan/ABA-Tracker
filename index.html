@@ -84,7 +84,23 @@
                     </div>
 
                     <div class="abc-section">
-                        <h3>ABC Data</h3>
+                        <div class="abc-header">
+                            <h3>ABC Data</h3>
+                            <button type="button" id="recordBtn" class="btn btn-record">
+                                <span class="record-icon">🎤</span>
+                                <span class="record-text">Record Incident</span>
+                            </button>
+                        </div>
+                        <div id="recordingStatus" class="recording-status hidden">
+                            <div class="recording-indicator">
+                                <span class="pulse-dot"></span>
+                                <span class="recording-label">Recording...</span>
+                                <span id="recordingTimer" class="recording-timer">00:00</span>
+                            </div>
+                            <button type="button" id="stopRecordBtn" class="btn btn-stop">
+                                ⏹️ Stop Recording
+                            </button>
+                        </div>
                         <div class="form-group">
                             <label for="antecedent">🅰️ Antecedent <span class="hint">(What happened before?)</span></label>
                             <textarea id="antecedent" rows="2" placeholder="Describe what happened before the behavior..." required></textarea>
@@ -217,6 +233,37 @@
         </div>
     </div>
 
+    <!-- Transcription Review Modal -->
+    <div id="transcriptionModal" class="modal-overlay">
+        <div class="modal transcription-modal">
+            <div class="modal-header">
+                <h2>📝 Review Transcription</h2>
+                <button id="closeTranscriptionModal" class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="transcriptionLoading" class="transcription-loading">
+                    <div class="spinner"></div>
+                    <p>Transcribing your recording...</p>
+                </div>
+                <div id="transcriptionContent" class="transcription-content hidden">
+                    <p class="transcription-hint">Review and edit the transcription if needed, then click "Parse & Fill Fields" to automatically populate the ABC form.</p>
+                    <div class="form-group">
+                        <label for="transcriptionText">Transcription</label>
+                        <textarea id="transcriptionText" rows="6" placeholder="Your transcription will appear here..."></textarea>
+                    </div>
+                </div>
+                <div id="parsingLoading" class="transcription-loading hidden">
+                    <div class="spinner"></div>
+                    <p>Parsing ABC data with AI...</p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="cancelTranscription" class="btn btn-cancel">Cancel</button>
+                <button type="button" id="parseAndFillBtn" class="btn btn-primary" disabled>✨ Parse & Fill Fields</button>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Made with ❤️ for Special Education Heroes</p>
         <p class="storage-note">💾 Data is saved automatically in your browser</p>
@@ -225,3 +272,4 @@
     <script src="index.js"></script>
 </body>
 </html>
+
