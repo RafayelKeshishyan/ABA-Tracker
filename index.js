@@ -3,6 +3,9 @@
 // LocalStorage key
 const STORAGE_KEY = 'aba_tracker_data';
 
+// API Base URL - uses relative path for Vercel deployment
+const API_BASE_URL = '/api';
+
 // In-memory data storage
 let students = [];
 let studentIdCounter = 1;
@@ -11,6 +14,13 @@ let incidentIdCounter = 1;
 // Edit mode state
 let editingStudentId = null;
 let editingIncidentId = null;
+
+// Recording state
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStartTime = null;
+let recordingTimerInterval = null;
+let currentAudioBlob = null;
 
 // DOM Elements
 const studentForm = document.getElementById('studentForm');
@@ -49,6 +59,22 @@ const editConsequence = document.getElementById('editConsequence');
 const editIntervention = document.getElementById('editIntervention');
 const editNotes = document.getElementById('editNotes');
 
+// Recording elements
+const recordBtn = document.getElementById('recordBtn');
+const stopRecordBtn = document.getElementById('stopRecordBtn');
+const recordingStatus = document.getElementById('recordingStatus');
+const recordingTimer = document.getElementById('recordingTimer');
+
+// Transcription modal elements
+const transcriptionModal = document.getElementById('transcriptionModal');
+const closeTranscriptionModal = document.getElementById('closeTranscriptionModal');
+const cancelTranscription = document.getElementById('cancelTranscription');
+const transcriptionLoading = document.getElementById('transcriptionLoading');
+const transcriptionContent = document.getElementById('transcriptionContent');
+const transcriptionText = document.getElementById('transcriptionText');
+const parseAndFillBtn = document.getElementById('parseAndFillBtn');
+const parsingLoading = document.getElementById('parsingLoading');
+
 // Initialize the app
 function init() {
     // Load data from localStorage
@@ -64,15 +90,31 @@ function init() {
     closeModalBtn.addEventListener('click', closeModal);
     cancelEditBtn.addEventListener('click', closeModal);
     
+    // Recording event listeners
+    recordBtn.addEventListener('click', startRecording);
+    stopRecordBtn.addEventListener('click', stopRecording);
+    
+    // Transcription modal event listeners
+    closeTranscriptionModal.addEventListener('click', closeTranscriptionModalFn);
+    cancelTranscription.addEventListener('click', closeTranscriptionModalFn);
+    parseAndFillBtn.addEventListener('click', parseAndFillFields);
+    transcriptionText.addEventListener('input', () => {
+        parseAndFillBtn.disabled = !transcriptionText.value.trim();
+    });
+    
     // Close modal when clicking outside
     editModal.addEventListener('click', (e) => {
         if (e.target === editModal) closeModal();
     });
+    transcriptionModal.addEventListener('click', (e) => {
+        if (e.target === transcriptionModal) closeTranscriptionModalFn();
+    });
     
     // Close modal on Escape key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && editModal.classList.contains('active')) {
-            closeModal();
+        if (e.key === 'Escape') {
+            if (editModal.classList.contains('active')) closeModal();
+            if (transcriptionModal.classList.contains('active')) closeTranscriptionModalFn();
         }
     });
     
@@ -481,5 +523,255 @@ function createIncidentCard(studentId, incident) {
     `;
 }
 
+// ==================== Recording Functions ====================
+
+async function startRecording() {
+    // Check browser support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Your browser does not support audio recording. Please use a modern browser like Chrome, Firefox, or Edge.');
+        return;
+    }
+    
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Determine best supported audio format
+        const mimeType = getSupportedMimeType();
+        const options = mimeType ? { mimeType } : {};
+        
+        mediaRecorder = new MediaRecorder(stream, options);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+        
+        mediaRecorder.onstop = async () => {
+            // Stop all tracks
+            stream.getTracks().forEach(track => track.stop());
+            
+            // Create audio blob
+            const mimeType = mediaRecorder.mimeType || 'audio/webm';
+            currentAudioBlob = new Blob(audioChunks, { type: mimeType });
+            
+            // Open transcription modal and start transcription
+            openTranscriptionModal();
+            await transcribeAudio(currentAudioBlob);
+        };
+        
+        mediaRecorder.onerror = (event) => {
+            console.error('MediaRecorder error:', event.error);
+            alert('Recording error occurred. Please try again.');
+            resetRecordingState();
+        };
+        
+        // Start recording
+        mediaRecorder.start();
+        recordingStartTime = Date.now();
+        
+        // Update UI
+        recordBtn.classList.add('hidden');
+        recordingStatus.classList.remove('hidden');
+        
+        // Start timer
+        recordingTimerInterval = setInterval(updateRecordingTimer, 1000);
+        
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+        if (error.name === 'NotAllowedError') {
+            alert('Microphone access was denied. Please allow microphone access in your browser settings to use voice recording.');
+        } else if (error.name === 'NotFoundError') {
+            alert('No microphone found. Please connect a microphone and try again.');
+        } else {
+            alert('Error accessing microphone: ' + error.message);
+        }
+    }
+}
+
+function getSupportedMimeType() {
+    const types = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        'audio/ogg'
+    ];
+    
+    for (const type of types) {
+        if (MediaRecorder.isTypeSupported(type)) {
+            return type;
+        }
+    }
+    return null;
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    
+    // Clear timer
+    if (recordingTimerInterval) {
+        clearInterval(recordingTimerInterval);
+        recordingTimerInterval = null;
+    }
+    
+    // Reset UI
+    recordBtn.classList.remove('hidden');
+    recordingStatus.classList.add('hidden');
+    recordingTimer.textContent = '00:00';
+}
+
+function resetRecordingState() {
+    if (recordingTimerInterval) {
+        clearInterval(recordingTimerInterval);
+        recordingTimerInterval = null;
+    }
+    recordBtn.classList.remove('hidden');
+    recordingStatus.classList.add('hidden');
+    recordingTimer.textContent = '00:00';
+    audioChunks = [];
+    currentAudioBlob = null;
+}
+
+function updateRecordingTimer() {
+    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const seconds = (elapsed % 60).toString().padStart(2, '0');
+    recordingTimer.textContent = `${minutes}:${seconds}`;
+}
+
+// ==================== Transcription Modal Functions ====================
+
+function openTranscriptionModal() {
+    transcriptionModal.classList.add('active');
+    transcriptionLoading.classList.remove('hidden');
+    transcriptionContent.classList.add('hidden');
+    parsingLoading.classList.add('hidden');
+    transcriptionText.value = '';
+    parseAndFillBtn.disabled = true;
+}
+
+function closeTranscriptionModalFn() {
+    transcriptionModal.classList.remove('active');
+    transcriptionLoading.classList.add('hidden');
+    transcriptionContent.classList.add('hidden');
+    parsingLoading.classList.add('hidden');
+    transcriptionText.value = '';
+    currentAudioBlob = null;
+}
+
+async function transcribeAudio(audioBlob) {
+    try {
+        // Determine file extension based on MIME type
+        const mimeType = audioBlob.type;
+        let extension = 'webm';
+        if (mimeType.includes('mp4')) extension = 'mp4';
+        else if (mimeType.includes('ogg')) extension = 'ogg';
+        else if (mimeType.includes('wav')) extension = 'wav';
+        
+        const formData = new FormData();
+        formData.append('file', audioBlob, `recording.${extension}`);
+        formData.append('model', 'whisper-1');
+        formData.append('language', 'en');
+        
+        const response = await fetch(`${API_BASE_URL}/transcribe`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (response.status === 429) {
+                throw new Error('Rate limit exceeded. Please try again tomorrow.');
+            } else {
+                throw new Error(errorData.error || `Transcription failed (${response.status})`);
+            }
+        }
+        
+        const data = await response.json();
+        const transcription = data.text;
+        
+        // Show transcription content
+        transcriptionLoading.classList.add('hidden');
+        transcriptionContent.classList.remove('hidden');
+        transcriptionText.value = transcription;
+        parseAndFillBtn.disabled = !transcription.trim();
+        
+    } catch (error) {
+        console.error('Transcription error:', error);
+        alert('Transcription failed: ' + error.message);
+        closeTranscriptionModalFn();
+    }
+}
+
+// ==================== AI Parsing Functions ====================
+
+async function parseAndFillFields() {
+    const transcription = transcriptionText.value.trim();
+    if (!transcription) {
+        alert('No transcription to parse.');
+        return;
+    }
+    
+    // Show parsing loading state
+    transcriptionContent.classList.add('hidden');
+    parsingLoading.classList.remove('hidden');
+    parseAndFillBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/parse`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ transcription })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (response.status === 429) {
+                throw new Error('Rate limit exceeded. Please try again tomorrow.');
+            } else {
+                throw new Error(errorData.error || `Parsing failed (${response.status})`);
+            }
+        }
+        
+        const data = await response.json();
+        const parsed = data.parsed;
+        
+        if (!parsed) {
+            throw new Error('No response from AI parser.');
+        }
+        
+        // Fill the form fields
+        if (parsed.antecedent) antecedentInput.value = parsed.antecedent;
+        if (parsed.behavior) behaviorInput.value = parsed.behavior;
+        if (parsed.consequence) consequenceInput.value = parsed.consequence;
+        if (parsed.intervention) interventionInput.value = parsed.intervention;
+        if (parsed.notes) notesInput.value = parsed.notes;
+        
+        // Close modal
+        closeTranscriptionModalFn();
+        
+        // Show success feedback
+        showSuccessAnimation(recordBtn);
+        
+    } catch (error) {
+        console.error('Parsing error:', error);
+        alert('Parsing failed: ' + error.message);
+        
+        // Return to transcription view so user can try again
+        parsingLoading.classList.add('hidden');
+        transcriptionContent.classList.remove('hidden');
+        parseAndFillBtn.disabled = false;
+    }
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
+
+
+
