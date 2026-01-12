@@ -716,7 +716,7 @@ async function parseAndFillFields() {
         return;
     }
     
-    // Show parsing loading state
+    // Show parsing loading state.
     transcriptionContent.classList.add('hidden');
     parsingLoading.classList.remove('hidden');
     parseAndFillBtn.disabled = true;
