@@ -1,0 +1,30 @@
+{
+  "name": "aba-tracker",
+  "version": "1.0.0",
+  "description": "A behavior tracking application for Special Education professionals using the ABC model with AI-powered voice transcription",
+  "author": "Rafay",
+  "license": "MIT",
+  "private": true,
+  "keywords": [
+    "education",
+    "special-education",
+    "behavior-tracking",
+    "abc-model",
+    "aba",
+    "openai",
+    "whisper"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.0.0"
+  }
+}
+
+
+
