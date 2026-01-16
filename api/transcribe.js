@@ -5,6 +5,9 @@
  * OpenAI's Whisper API. Includes rate limiting to prevent abuse.
  */
 
+import FormData from 'form-data';
+import busboy from 'busboy';
+
 // Simple in-memory rate limiting (resets on cold start)
 const rateLimitMap = new Map();
 const RATE_LIMIT = 15; // requests per IP per day
@@ -79,6 +82,8 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server not configured. OPENAI_API_KEY is missing.' });
     }
     
+    console.log('Transcribe endpoint called, API key present:', !!apiKey);
+    
     // Rate limiting
     const ip = getClientIP(req);
     const rateLimit = checkRateLimit(ip);
@@ -94,43 +99,100 @@ export default async function handler(req, res) {
     }
     
     try {
-        // Read the raw body
-        const chunks = [];
-        for await (const chunk of req) {
-            chunks.push(chunk);
-        }
-        const buffer = Buffer.concat(chunks);
-        
-        // Validate content type
+        // Parse multipart form data using busboy
         const contentType = req.headers['content-type'] || '';
         if (!contentType.includes('multipart/form-data')) {
             return res.status(400).json({ error: 'Invalid content type. Expected multipart/form-data.' });
         }
         
-        // Forward request to OpenAI Whisper API
-        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': contentType,
-            },
-            body: buffer,
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('OpenAI API error:', response.status, errorData);
-            return res.status(response.status).json({ 
-                error: errorData.error?.message || `Transcription failed (${response.status})` 
+        return new Promise((resolve, reject) => {
+            const parser = busboy({ headers: req.headers });
+            let audioFile = null;
+            let model = 'whisper-1';
+            let language = 'en';
+            let filename = 'recording.webm';
+            
+            parser.on('file', (name, file, info) => {
+                if (name === 'file') {
+                    const chunks = [];
+                    filename = info.filename || 'recording.webm';
+                    file.on('data', (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    file.on('end', () => {
+                        audioFile = Buffer.concat(chunks);
+                    });
+                }
             });
-        }
-        
-        const data = await response.json();
-        return res.status(200).json(data);
+            
+            parser.on('field', (name, value) => {
+                if (name === 'model') {
+                    model = value;
+                } else if (name === 'language') {
+                    language = value;
+                }
+            });
+            
+            parser.on('finish', async () => {
+                if (!audioFile) {
+                    return resolve(res.status(400).json({ error: 'No audio file found in request' }));
+                }
+                
+                try {
+                    // Create new FormData for OpenAI
+                    const formData = new FormData();
+                    formData.append('file', audioFile, {
+                        filename: filename,
+                        contentType: 'audio/webm'
+                    });
+                    formData.append('model', model);
+                    formData.append('language', language);
+                    
+                    // Forward request to OpenAI Whisper API
+                    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            ...formData.getHeaders(),
+                        },
+                        body: formData,
+                    });
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let errorData;
+                        try {
+                            errorData = JSON.parse(errorText);
+                        } catch (e) {
+                            errorData = { error: { message: errorText || `HTTP ${response.status}` } };
+                        }
+                        console.error('OpenAI API error:', response.status, errorData);
+                        console.error('Response text:', errorText);
+                        return resolve(res.status(response.status).json({ 
+                            error: errorData.error?.message || `Transcription failed (${response.status})` 
+                        }));
+                    }
+                    
+                    const data = await response.json();
+                    return resolve(res.status(200).json(data));
+                } catch (error) {
+                    console.error('Transcription error:', error);
+                    return resolve(res.status(500).json({ error: 'Internal server error' }));
+                }
+            });
+            
+            parser.on('error', (error) => {
+                console.error('Busboy error:', error);
+                return resolve(res.status(400).json({ error: 'Failed to parse form data' }));
+            });
+            
+            // Pipe the request to parser
+            req.pipe(parser);
+        });
         
     } catch (error) {
         console.error('Transcription error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error: ' + error.message });
     }
 }
 
