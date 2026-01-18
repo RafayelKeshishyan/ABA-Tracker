@@ -5,6 +5,7 @@
   "author": "Rafay",
   "license": "MIT",
   "private": true,
+  "type": "module",
   "keywords": [
     "education",
     "special-education",
