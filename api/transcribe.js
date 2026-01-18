@@ -144,26 +144,54 @@ export default async function handler(req, res) {
                         language = value;
                     }
                 });
-                
                 parser.on('finish', async () => {
                     if (!audioFile) {
                         return resolve(res.status(400).json({ error: 'No audio file found in request' }));
                     }
                     
                     try {
+                        // Determine content type based on filename extension
+                        let contentType = 'audio/webm';
+                        if (filename.endsWith('.mp4') || filename.endsWith('.m4a')) {
+                            contentType = 'audio/mp4';
+                        } else if (filename.endsWith('.mp3')) {
+                            contentType = 'audio/mpeg';
+                        } else if (filename.endsWith('.wav')) {
+                            contentType = 'audio/wav';
+                        } else if (filename.endsWith('.ogg')) {
+                            contentType = 'audio/ogg';
+                        }
+                        
+                        // Create FormData for OpenAI - use proper format
                         const formData = new FormData();
+                        
+                        // Append file as a buffer with proper options
                         formData.append('file', audioFile, {
                             filename: filename,
-                            contentType: 'audio/webm'
+                            contentType: contentType,
+                            knownLength: audioFile.length
                         });
+                        
+                        // Append other fields
                         formData.append('model', model);
                         formData.append('language', language);
+                        
+                        // Get headers from form-data (includes Content-Type with boundary)
+                        const headers = formData.getHeaders();
+                        
+                        console.log('Sending to OpenAI:', {
+                            filename,
+                            contentType,
+                            fileSize: audioFile.length,
+                            model,
+                            language
+                        });
                         
                         const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
                             method: 'POST',
                             headers: {
                                 'Authorization': `Bearer ${apiKey}`,
-                                ...formData.getHeaders(),
+                                ...headers,
                             },
                             body: formData,
                         });
