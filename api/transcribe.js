@@ -7,6 +7,7 @@
 
 import FormData from 'form-data';
 import busboy from 'busboy';
+import { Readable } from 'stream';
 
 // Simple in-memory rate limiting (resets on cold start)
 const rateLimitMap = new Map();
@@ -102,6 +103,7 @@ export default async function handler(req, res) {
         // Parse multipart form data using busboy
         const contentType = req.headers['content-type'] || '';
         if (!contentType.includes('multipart/form-data')) {
+            console.error('Invalid content type:', contentType);
             return res.status(400).json({ error: 'Invalid content type. Expected multipart/form-data.' });
         }
         
@@ -126,6 +128,9 @@ export default async function handler(req, res) {
                         });
                         file.on('end', () => {
                             audioFile = Buffer.concat(chunks);
+                        });
+                        file.on('error', (err) => {
+                            console.error('File stream error:', err);
                         });
                     } else {
                         file.resume();
@@ -181,40 +186,42 @@ export default async function handler(req, res) {
                         return resolve(res.status(200).json(data));
                     } catch (error) {
                         console.error('Transcription error:', error);
-                        return resolve(res.status(500).json({ error: 'Internal server error' }));
+                        console.error('Error stack:', error.stack);
+                        return resolve(res.status(500).json({ error: 'Internal server error: ' + error.message }));
                     }
                 });
                 
                 parser.on('error', (error) => {
                     console.error('Busboy parser error:', error);
+                    console.error('Parser error stack:', error.stack);
                     if (!res.headersSent) {
                         resolve(res.status(400).json({ error: 'Could not parse multipart form: ' + error.message }));
                     }
                 });
                 
-                // For Vercel serverless functions, handle the request body
-                if (req.on && typeof req.pipe === 'function') {
+                // For Vercel serverless functions, the request body is already a stream
+                // when bodyParser is false. We can pipe it directly.
+                if (typeof req.pipe === 'function') {
                     // It's a stream - pipe it directly
                     req.pipe(parser);
-                } else if (req.body) {
-                    // It might be a buffer - convert to stream
-                    const { Readable } = await import('stream');
-                    const bodyStream = Readable.from(Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body));
-                    bodyStream.pipe(parser);
                 } else {
-                    return resolve(res.status(400).json({ error: 'No request body received' }));
+                    // Fallback: if it's a buffer or something else, convert to stream
+                    const bodyBuffer = Buffer.isBuffer(req.body) 
+                        ? req.body 
+                        : Buffer.from(req.body || '');
+                    const bodyStream = Readable.from(bodyBuffer);
+                    bodyStream.pipe(parser);
                 }
             } catch (error) {
                 console.error('Error setting up parser:', error);
+                console.error('Error stack:', error.stack);
                 return resolve(res.status(500).json({ error: 'Internal server error: ' + error.message }));
             }
         });
         
     } catch (error) {
-        console.error('Transcription error:', error);
+        console.error('Outer transcription error:', error);
+        console.error('Error stack:', error.stack);
         return res.status(500).json({ error: 'Internal server error: ' + error.message });
     }
 }
-
-
-
