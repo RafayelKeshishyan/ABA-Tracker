@@ -2,8 +2,6 @@
 
 A professional web application for Special Education professionals to efficiently track and document student behavior using the ABC (Antecedent-Behavior-Consequence) model, powered by advanced AI transcription technology.
 
-![ABA Tracker Screenshot](screenshot.png)
-
 ## 🎯 Key Feature: AI-Powered Voice Transcription
 
 **Transform spoken observations into structured documentation in seconds.**

@@ -106,88 +106,108 @@ export default async function handler(req, res) {
         }
         
         return new Promise((resolve, reject) => {
-            const parser = busboy({ headers: req.headers });
-            let audioFile = null;
-            let model = 'whisper-1';
-            let language = 'en';
-            let filename = 'recording.webm';
-            
-            parser.on('file', (name, file, info) => {
-                if (name === 'file') {
-                    const chunks = [];
-                    filename = info.filename || 'recording.webm';
-                    file.on('data', (chunk) => {
-                        chunks.push(chunk);
-                    });
-                    file.on('end', () => {
-                        audioFile = Buffer.concat(chunks);
-                    });
-                }
-            });
-            
-            parser.on('field', (name, value) => {
-                if (name === 'model') {
-                    model = value;
-                } else if (name === 'language') {
-                    language = value;
-                }
-            });
-            
-            parser.on('finish', async () => {
-                if (!audioFile) {
-                    return resolve(res.status(400).json({ error: 'No audio file found in request' }));
-                }
+            try {
+                const parser = busboy({ 
+                    headers: req.headers,
+                    defParamCharset: 'utf8'
+                });
                 
-                try {
-                    // Create new FormData for OpenAI
-                    const formData = new FormData();
-                    formData.append('file', audioFile, {
-                        filename: filename,
-                        contentType: 'audio/webm'
-                    });
-                    formData.append('model', model);
-                    formData.append('language', language);
-                    
-                    // Forward request to OpenAI Whisper API
-                    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${apiKey}`,
-                            ...formData.getHeaders(),
-                        },
-                        body: formData,
-                    });
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        let errorData;
-                        try {
-                            errorData = JSON.parse(errorText);
-                        } catch (e) {
-                            errorData = { error: { message: errorText || `HTTP ${response.status}` } };
-                        }
-                        console.error('OpenAI API error:', response.status, errorData);
-                        console.error('Response text:', errorText);
-                        return resolve(res.status(response.status).json({ 
-                            error: errorData.error?.message || `Transcription failed (${response.status})` 
-                        }));
+                let audioFile = null;
+                let model = 'whisper-1';
+                let language = 'en';
+                let filename = 'recording.webm';
+                
+                parser.on('file', (name, file, info) => {
+                    if (name === 'file') {
+                        const chunks = [];
+                        filename = info.filename || 'recording.webm';
+                        file.on('data', (chunk) => {
+                            chunks.push(chunk);
+                        });
+                        file.on('end', () => {
+                            audioFile = Buffer.concat(chunks);
+                        });
+                    } else {
+                        file.resume();
+                    }
+                });
+                
+                parser.on('field', (name, value) => {
+                    if (name === 'model') {
+                        model = value;
+                    } else if (name === 'language') {
+                        language = value;
+                    }
+                });
+                
+                parser.on('finish', async () => {
+                    if (!audioFile) {
+                        return resolve(res.status(400).json({ error: 'No audio file found in request' }));
                     }
                     
-                    const data = await response.json();
-                    return resolve(res.status(200).json(data));
-                } catch (error) {
-                    console.error('Transcription error:', error);
-                    return resolve(res.status(500).json({ error: 'Internal server error' }));
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', audioFile, {
+                            filename: filename,
+                            contentType: 'audio/webm'
+                        });
+                        formData.append('model', model);
+                        formData.append('language', language);
+                        
+                        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${apiKey}`,
+                                ...formData.getHeaders(),
+                            },
+                            body: formData,
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            let errorData;
+                            try {
+                                errorData = JSON.parse(errorText);
+                            } catch (e) {
+                                errorData = { error: { message: errorText || `HTTP ${response.status}` } };
+                            }
+                            console.error('OpenAI API error:', response.status, errorData);
+                            return resolve(res.status(response.status).json({ 
+                                error: errorData.error?.message || `Transcription failed (${response.status})` 
+                            }));
+                        }
+                        
+                        const data = await response.json();
+                        return resolve(res.status(200).json(data));
+                    } catch (error) {
+                        console.error('Transcription error:', error);
+                        return resolve(res.status(500).json({ error: 'Internal server error' }));
+                    }
+                });
+                
+                parser.on('error', (error) => {
+                    console.error('Busboy parser error:', error);
+                    if (!res.headersSent) {
+                        resolve(res.status(400).json({ error: 'Could not parse multipart form: ' + error.message }));
+                    }
+                });
+                
+                // For Vercel serverless functions, handle the request body
+                if (req.on && typeof req.pipe === 'function') {
+                    // It's a stream - pipe it directly
+                    req.pipe(parser);
+                } else if (req.body) {
+                    // It might be a buffer - convert to stream
+                    const { Readable } = await import('stream');
+                    const bodyStream = Readable.from(Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body));
+                    bodyStream.pipe(parser);
+                } else {
+                    return resolve(res.status(400).json({ error: 'No request body received' }));
                 }
-            });
-            
-            parser.on('error', (error) => {
-                console.error('Busboy error:', error);
-                return resolve(res.status(400).json({ error: 'Failed to parse form data' }));
-            });
-            
-            // Pipe the request to parser
-            req.pipe(parser);
+            } catch (error) {
+                console.error('Error setting up parser:', error);
+                return resolve(res.status(500).json({ error: 'Internal server error: ' + error.message }));
+            }
         });
         
     } catch (error) {
