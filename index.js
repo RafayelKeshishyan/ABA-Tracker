@@ -672,14 +672,24 @@ async function transcribeAudio(audioBlob) {
         else if (mimeType.includes('ogg')) extension = 'ogg';
         else if (mimeType.includes('wav')) extension = 'wav';
         
-        const formData = new FormData();
-        formData.append('file', audioBlob, `recording.${extension}`);
-        formData.append('model', 'whisper-1');
-        formData.append('language', 'en');
+        // Convert blob to base64 to avoid multipart form parsing issues
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const base64Audio = btoa(
+            new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
         
         const response = await fetch(`${API_BASE_URL}/transcribe`, {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                audio: base64Audio,
+                filename: `recording.${extension}`,
+                mimeType: mimeType || 'audio/webm',
+                model: 'whisper-1',
+                language: 'en'
+            })
         });
         
         if (!response.ok) {

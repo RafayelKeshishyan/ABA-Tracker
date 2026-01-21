@@ -3,11 +3,11 @@
  * 
  * This endpoint handles audio file uploads and transcribes them using
  * OpenAI's Whisper API. Includes rate limiting to prevent abuse.
+ * 
+ * Accepts JSON with base64-encoded audio to avoid multipart form parsing issues.
  */
 
 import FormData from 'form-data';
-import busboy from 'busboy';
-import { Readable } from 'stream';
 
 // Simple in-memory rate limiting (resets on cold start)
 const rateLimitMap = new Map();
@@ -49,10 +49,6 @@ function getClientIP(req) {
     }
     return req.headers['x-real-ip'] || 'unknown';
 }
-
-// Note: For Vercel serverless functions in api/ folder,
-// the request body is available as a stream by default
-// No config export needed (that's for Next.js API routes)
 
 /**
  * Main handler for audio transcription
@@ -97,218 +93,90 @@ export default async function handler(req, res) {
     }
     
     try {
-        // Parse multipart form data using busboy
-        const contentType = req.headers['content-type'] || '';
-        console.log('Content-Type header:', contentType);
-        console.log('Request method:', req.method);
-        console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+        // Parse JSON body with base64 audio
+        const { audio, filename, mimeType, model, language } = req.body;
         
-        if (!contentType.includes('multipart/form-data')) {
-            console.error('Invalid content type:', contentType);
-            return res.status(400).json({ error: 'Invalid content type. Expected multipart/form-data.' });
+        if (!audio) {
+            return res.status(400).json({ error: 'Missing audio data' });
         }
         
-        return new Promise((resolve, reject) => {
-            try {
-                const parser = busboy({ 
-                    headers: req.headers,
-                    defParamCharset: 'utf8'
-                });
-                
-                let audioFile = null;
-                let model = 'whisper-1';
-                let language = 'en';
-                let filename = 'recording.webm';
-                
-                parser.on('file', (name, file, info) => {
-                    if (name === 'file') {
-                        const fileChunks = [];
-                        filename = info.filename || 'recording.webm';
-                        file.on('data', (chunk) => {
-                            fileChunks.push(chunk);
-                        });
-                        file.on('end', () => {
-                            audioFile = Buffer.concat(fileChunks);
-                        });
-                        file.on('error', (err) => {
-                            console.error('File stream error:', err);
-                        });
-                    } else {
-                        file.resume();
-                    }
-                });
-                
-                parser.on('field', (name, value) => {
-                    if (name === 'model') {
-                        model = value;
-                    } else if (name === 'language') {
-                        language = value;
-                    }
-                });
-                
-                parser.on('finish', async () => {
-                    if (!audioFile) {
-                        return resolve(res.status(400).json({ error: 'No audio file found in request' }));
-                    }
-                    
-                    try {
-                        // Determine content type based on filename extension
-                        let fileContentType = 'audio/webm';
-                        if (filename.endsWith('.mp4') || filename.endsWith('.m4a')) {
-                            fileContentType = 'audio/mp4';
-                        } else if (filename.endsWith('.mp3')) {
-                            fileContentType = 'audio/mpeg';
-                        } else if (filename.endsWith('.wav')) {
-                            fileContentType = 'audio/wav';
-                        } else if (filename.endsWith('.ogg')) {
-                            fileContentType = 'audio/ogg';
-                        }
-                        
-                        // Create FormData for OpenAI - use proper format
-                        const formData = new FormData();
-                        
-                        // Append file as a buffer with proper options
-                        formData.append('file', audioFile, {
-                            filename: filename,
-                            contentType: fileContentType,
-                            knownLength: audioFile.length
-                        });
-                        
-                        // Append other fields
-                        formData.append('model', model);
-                        formData.append('language', language);
-                        
-                        // Get headers from form-data (includes Content-Type with boundary)
-                        const headers = formData.getHeaders();
-                        
-                        console.log('Sending to OpenAI:', {
-                            filename,
-                            contentType: fileContentType,
-                            fileSize: audioFile.length,
-                            model,
-                            language
-                        });
-                        
-                        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${apiKey}`,
-                                ...headers,
-                            },
-                            body: formData,
-                        });
-                        
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            let errorData;
-                            try {
-                                errorData = JSON.parse(errorText);
-                            } catch (e) {
-                                errorData = { error: { message: errorText || `HTTP ${response.status}` } };
-                            }
-                            console.error('OpenAI API error:', response.status, errorData);
-                            return resolve(res.status(response.status).json({ 
-                                error: errorData.error?.message || `Transcription failed (${response.status})` 
-                            }));
-                        }
-                        
-                        const data = await response.json();
-                        return resolve(res.status(200).json(data));
-                    } catch (error) {
-                        console.error('Transcription error:', error);
-                        console.error('Error stack:', error.stack);
-                        return resolve(res.status(500).json({ error: 'Internal server error: ' + error.message }));
-                    }
-                });
-                
-                parser.on('error', (error) => {
-                    console.error('Busboy parser error:', error);
-                    console.error('Parser error stack:', error.stack);
-                    if (!res.headersSent) {
-                        resolve(res.status(400).json({ error: 'Could not parse multipart form: ' + error.message }));
-                    }
-                });
-                
-                // In Vercel serverless functions, we need to handle the request body carefully
-                // The body might be available as a stream or already buffered
-                try {
-                    // Method 1: If req has a pipe method, use it directly (standard Node.js stream)
-                    if (req.pipe && typeof req.pipe === 'function') {
-                        console.log('Using req.pipe() method');
-                        req.pipe(parser);
-                    } 
-                    // Method 2: If req is an event emitter (stream), handle events
-                    else if (req.on && typeof req.on === 'function') {
-                        console.log('Using event-based stream handling');
-                        req.on('data', (chunk) => {
-                            parser.write(chunk);
-                        });
-                        req.on('end', () => {
-                            parser.end();
-                        });
-                        req.on('error', (err) => {
-                            console.error('Request stream error:', err);
-                            parser.emit('error', err);
-                        });
-                        // Resume the request to start receiving data
-                        if (req.resume) {
-                            req.resume();
-                        }
-                    }
-                    // Method 3: If body is already available as buffer/string
-                    else if (req.body !== undefined && req.body !== null) {
-                        console.log('Using req.body (already available)');
-                        const bodyBuffer = Buffer.isBuffer(req.body) 
-                            ? req.body 
-                            : Buffer.from(req.body);
-                        const bodyStream = Readable.from(bodyBuffer);
-                        bodyStream.pipe(parser);
-                    } 
-                    // Method 4: Try to access rawBody if available (some Vercel setups)
-                    else if (req.rawBody) {
-                        console.log('Using req.rawBody');
-                        const bodyBuffer = Buffer.isBuffer(req.rawBody) 
-                            ? req.rawBody 
-                            : Buffer.from(req.rawBody);
-                        const bodyStream = Readable.from(bodyBuffer);
-                        bodyStream.pipe(parser);
-                    } else {
-                        // Last resort: log what we have and return error
-                        console.error('Cannot access request body. Request properties:', {
-                            hasPipe: typeof req.pipe,
-                            hasOn: typeof req.on,
-                            hasBody: req.body !== undefined,
-                            hasRawBody: req.rawBody !== undefined,
-                            keys: Object.keys(req)
-                        });
-                        return resolve(res.status(500).json({ 
-                            error: 'Cannot access request body stream. Please check Vercel function configuration.' 
-                        }));
-                    }
-                } catch (streamError) {
-                    console.error('Error setting up request stream:', streamError);
-                    console.error('Error details:', {
-                        message: streamError.message,
-                        stack: streamError.stack,
-                        requestType: typeof req,
-                        hasPipe: typeof req.pipe,
-                        hasOn: typeof req.on
-                    });
-                    if (!res.headersSent) {
-                        return resolve(res.status(500).json({ 
-                            error: 'Failed to process request: ' + streamError.message 
-                        }));
-                    }
-                }
-            } catch (error) {
-                console.error('Error setting up parser:', error);
-                console.error('Error stack:', error.stack);
-                return resolve(res.status(500).json({ error: 'Internal server error: ' + error.message }));
-            }
+        // Decode base64 audio to buffer
+        const audioBuffer = Buffer.from(audio, 'base64');
+        
+        if (audioBuffer.length === 0) {
+            return res.status(400).json({ error: 'Audio data is empty' });
+        }
+        
+        // Determine content type based on filename or provided mimeType
+        let contentType = mimeType || 'audio/webm';
+        const fname = filename || 'recording.webm';
+        
+        if (fname.endsWith('.mp4') || fname.endsWith('.m4a')) {
+            contentType = 'audio/mp4';
+        } else if (fname.endsWith('.mp3')) {
+            contentType = 'audio/mpeg';
+        } else if (fname.endsWith('.wav')) {
+            contentType = 'audio/wav';
+        } else if (fname.endsWith('.ogg')) {
+            contentType = 'audio/ogg';
+        } else if (fname.endsWith('.webm')) {
+            contentType = 'audio/webm';
+        }
+        
+        // Create FormData for OpenAI
+        const formData = new FormData();
+        
+        // Append file as a buffer with proper options
+        formData.append('file', audioBuffer, {
+            filename: fname,
+            contentType: contentType,
+            knownLength: audioBuffer.length
         });
         
+        // Append other fields
+        formData.append('model', model || 'whisper-1');
+        formData.append('language', language || 'en');
+        
+        // Get headers from form-data (includes Content-Type with boundary)
+        const headers = formData.getHeaders();
+        
+        console.log('Sending to OpenAI:', {
+            filename: fname,
+            contentType,
+            fileSize: audioBuffer.length,
+            model: model || 'whisper-1',
+            language: language || 'en'
+        });
+        
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                ...headers,
+            },
+            body: formData,
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                errorData = { error: { message: errorText || `HTTP ${response.status}` } };
+            }
+            console.error('OpenAI API error:', response.status, errorData);
+            return res.status(response.status).json({ 
+                error: errorData.error?.message || `Transcription failed (${response.status})` 
+            });
+        }
+        
+        const data = await response.json();
+        console.log('Transcription successful, text length:', data.text?.length || 0);
+        return res.status(200).json(data);
+        
     } catch (error) {
-        console.error('Outer transcription error:', error);
+        console.error('Transcription error:', error);
         console.error('Error stack:', error.stack);
         return res.status(500).json({ error: 'Internal server error: ' + error.message });
     }
