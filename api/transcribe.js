@@ -7,9 +7,9 @@
  * Accepts JSON with base64-encoded audio to avoid multipart form parsing issues.
  */
 
-// Simple in-memory rate limiting (resets on cold start)
+// Simple in-memory rate limiting (resets on cold start/redeploy)
 const rateLimitMap = new Map();
-const RATE_LIMIT = 15; // requests per IP per day
+const RATE_LIMIT = 50; // requests per IP per day
 const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
