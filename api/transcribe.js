@@ -7,8 +7,6 @@
  * Accepts JSON with base64-encoded audio to avoid multipart form parsing issues.
  */
 
-import FormData from 'form-data';
-
 // Simple in-memory rate limiting (resets on cold start)
 const rateLimitMap = new Map();
 const RATE_LIMIT = 15; // requests per IP per day
@@ -48,6 +46,47 @@ function getClientIP(req) {
         return forwarded.split(',')[0].trim();
     }
     return req.headers['x-real-ip'] || 'unknown';
+}
+
+/**
+ * Build multipart form data manually
+ * This is more reliable than using libraries across different environments
+ */
+function buildMultipartFormData(fields, file) {
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+    const CRLF = '\r\n';
+    
+    const parts = [];
+    
+    // Add regular fields
+    for (const [name, value] of Object.entries(fields)) {
+        parts.push(
+            `--${boundary}${CRLF}` +
+            `Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}` +
+            `${value}${CRLF}`
+        );
+    }
+    
+    // Add file field
+    parts.push(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="file"; filename="${file.filename}"${CRLF}` +
+        `Content-Type: ${file.contentType}${CRLF}${CRLF}`
+    );
+    
+    // Convert string parts to buffer
+    const stringPart = Buffer.from(parts.join(''), 'utf8');
+    
+    // End boundary
+    const endBoundary = Buffer.from(`${CRLF}--${boundary}--${CRLF}`, 'utf8');
+    
+    // Combine all parts: string parts + file data + end boundary
+    const body = Buffer.concat([stringPart, file.data, endBoundary]);
+    
+    return {
+        body,
+        contentType: `multipart/form-data; boundary=${boundary}`
+    };
 }
 
 /**
@@ -123,23 +162,6 @@ export default async function handler(req, res) {
             contentType = 'audio/webm';
         }
         
-        // Create FormData for OpenAI
-        const formData = new FormData();
-        
-        // Append file as a buffer with proper options
-        formData.append('file', audioBuffer, {
-            filename: fname,
-            contentType: contentType,
-            knownLength: audioBuffer.length
-        });
-        
-        // Append other fields
-        formData.append('model', model || 'whisper-1');
-        formData.append('language', language || 'en');
-        
-        // Get headers from form-data (includes Content-Type with boundary)
-        const headers = formData.getHeaders();
-        
         console.log('Sending to OpenAI:', {
             filename: fname,
             contentType,
@@ -148,13 +170,28 @@ export default async function handler(req, res) {
             language: language || 'en'
         });
         
+        // Build multipart form data manually
+        const { body: formBody, contentType: formContentType } = buildMultipartFormData(
+            {
+                model: model || 'whisper-1',
+                language: language || 'en'
+            },
+            {
+                filename: fname,
+                contentType: contentType,
+                data: audioBuffer
+            }
+        );
+        
+        console.log('Form body size:', formBody.length, 'Content-Type:', formContentType);
+        
         const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                ...headers,
+                'Content-Type': formContentType,
             },
-            body: formData,
+            body: formBody,
         });
         
         if (!response.ok) {
