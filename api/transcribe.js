@@ -50,12 +50,9 @@ function getClientIP(req) {
     return req.headers['x-real-ip'] || 'unknown';
 }
 
-// Disable body parsing to handle raw multipart form data
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
+// Note: For Vercel serverless functions in api/ folder,
+// the request body is available as a stream by default
+// No config export needed (that's for Next.js API routes)
 
 /**
  * Main handler for audio transcription
@@ -102,6 +99,10 @@ export default async function handler(req, res) {
     try {
         // Parse multipart form data using busboy
         const contentType = req.headers['content-type'] || '';
+        console.log('Content-Type header:', contentType);
+        console.log('Request method:', req.method);
+        console.log('Request headers:', JSON.stringify(req.headers, null, 2));
+        
         if (!contentType.includes('multipart/form-data')) {
             console.error('Invalid content type:', contentType);
             return res.status(400).json({ error: 'Invalid content type. Expected multipart/form-data.' });
@@ -121,13 +122,13 @@ export default async function handler(req, res) {
                 
                 parser.on('file', (name, file, info) => {
                     if (name === 'file') {
-                        const chunks = [];
+                        const fileChunks = [];
                         filename = info.filename || 'recording.webm';
                         file.on('data', (chunk) => {
-                            chunks.push(chunk);
+                            fileChunks.push(chunk);
                         });
                         file.on('end', () => {
-                            audioFile = Buffer.concat(chunks);
+                            audioFile = Buffer.concat(fileChunks);
                         });
                         file.on('error', (err) => {
                             console.error('File stream error:', err);
@@ -144,6 +145,7 @@ export default async function handler(req, res) {
                         language = value;
                     }
                 });
+                
                 parser.on('finish', async () => {
                     if (!audioFile) {
                         return resolve(res.status(400).json({ error: 'No audio file found in request' }));
@@ -151,15 +153,15 @@ export default async function handler(req, res) {
                     
                     try {
                         // Determine content type based on filename extension
-                        let contentType = 'audio/webm';
+                        let fileContentType = 'audio/webm';
                         if (filename.endsWith('.mp4') || filename.endsWith('.m4a')) {
-                            contentType = 'audio/mp4';
+                            fileContentType = 'audio/mp4';
                         } else if (filename.endsWith('.mp3')) {
-                            contentType = 'audio/mpeg';
+                            fileContentType = 'audio/mpeg';
                         } else if (filename.endsWith('.wav')) {
-                            contentType = 'audio/wav';
+                            fileContentType = 'audio/wav';
                         } else if (filename.endsWith('.ogg')) {
-                            contentType = 'audio/ogg';
+                            fileContentType = 'audio/ogg';
                         }
                         
                         // Create FormData for OpenAI - use proper format
@@ -168,7 +170,7 @@ export default async function handler(req, res) {
                         // Append file as a buffer with proper options
                         formData.append('file', audioFile, {
                             filename: filename,
-                            contentType: contentType,
+                            contentType: fileContentType,
                             knownLength: audioFile.length
                         });
                         
@@ -181,7 +183,7 @@ export default async function handler(req, res) {
                         
                         console.log('Sending to OpenAI:', {
                             filename,
-                            contentType,
+                            contentType: fileContentType,
                             fileSize: audioFile.length,
                             model,
                             language
@@ -227,18 +229,76 @@ export default async function handler(req, res) {
                     }
                 });
                 
-                // For Vercel serverless functions, the request body is already a stream
-                // when bodyParser is false. We can pipe it directly.
-                if (typeof req.pipe === 'function') {
-                    // It's a stream - pipe it directly
-                    req.pipe(parser);
-                } else {
-                    // Fallback: if it's a buffer or something else, convert to stream
-                    const bodyBuffer = Buffer.isBuffer(req.body) 
-                        ? req.body 
-                        : Buffer.from(req.body || '');
-                    const bodyStream = Readable.from(bodyBuffer);
-                    bodyStream.pipe(parser);
+                // In Vercel serverless functions, we need to handle the request body carefully
+                // The body might be available as a stream or already buffered
+                try {
+                    // Method 1: If req has a pipe method, use it directly (standard Node.js stream)
+                    if (req.pipe && typeof req.pipe === 'function') {
+                        console.log('Using req.pipe() method');
+                        req.pipe(parser);
+                    } 
+                    // Method 2: If req is an event emitter (stream), handle events
+                    else if (req.on && typeof req.on === 'function') {
+                        console.log('Using event-based stream handling');
+                        req.on('data', (chunk) => {
+                            parser.write(chunk);
+                        });
+                        req.on('end', () => {
+                            parser.end();
+                        });
+                        req.on('error', (err) => {
+                            console.error('Request stream error:', err);
+                            parser.emit('error', err);
+                        });
+                        // Resume the request to start receiving data
+                        if (req.resume) {
+                            req.resume();
+                        }
+                    }
+                    // Method 3: If body is already available as buffer/string
+                    else if (req.body !== undefined && req.body !== null) {
+                        console.log('Using req.body (already available)');
+                        const bodyBuffer = Buffer.isBuffer(req.body) 
+                            ? req.body 
+                            : Buffer.from(req.body);
+                        const bodyStream = Readable.from(bodyBuffer);
+                        bodyStream.pipe(parser);
+                    } 
+                    // Method 4: Try to access rawBody if available (some Vercel setups)
+                    else if (req.rawBody) {
+                        console.log('Using req.rawBody');
+                        const bodyBuffer = Buffer.isBuffer(req.rawBody) 
+                            ? req.rawBody 
+                            : Buffer.from(req.rawBody);
+                        const bodyStream = Readable.from(bodyBuffer);
+                        bodyStream.pipe(parser);
+                    } else {
+                        // Last resort: log what we have and return error
+                        console.error('Cannot access request body. Request properties:', {
+                            hasPipe: typeof req.pipe,
+                            hasOn: typeof req.on,
+                            hasBody: req.body !== undefined,
+                            hasRawBody: req.rawBody !== undefined,
+                            keys: Object.keys(req)
+                        });
+                        return resolve(res.status(500).json({ 
+                            error: 'Cannot access request body stream. Please check Vercel function configuration.' 
+                        }));
+                    }
+                } catch (streamError) {
+                    console.error('Error setting up request stream:', streamError);
+                    console.error('Error details:', {
+                        message: streamError.message,
+                        stack: streamError.stack,
+                        requestType: typeof req,
+                        hasPipe: typeof req.pipe,
+                        hasOn: typeof req.on
+                    });
+                    if (!res.headersSent) {
+                        return resolve(res.status(500).json({ 
+                            error: 'Failed to process request: ' + streamError.message 
+                        }));
+                    }
                 }
             } catch (error) {
                 console.error('Error setting up parser:', error);
