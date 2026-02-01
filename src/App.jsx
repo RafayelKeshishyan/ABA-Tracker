@@ -6,7 +6,7 @@ import { StudentCard } from './components/StudentCard'
 import { EditModal } from './components/EditModal'
 
 function App() {
-  const [data, setData] = useLocalStorage('aba_tracker_data', {
+  const [data, setData] = useLocalStorage('abcscribe_data', {
     students: [],
     studentIdCounter: 1,
     incidentIdCounter: 1
