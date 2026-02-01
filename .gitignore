@@ -3,7 +3,6 @@ node_modules/
 
 # Build output
 dist/
-.vercel/
 
 # Environment variables
 .env
@@ -11,20 +10,16 @@ dist/
 .env.*.local
 
 # IDE
-.idea/
 .vscode/
-*.swp
-*.swo
+.idea/
 
 # OS files
 .DS_Store
 Thumbs.db
-ehthumbs.db
-Desktop.ini
 
 # Logs
 *.log
 npm-debug.log*
 
-
-
+# Vercel
+.vercel

@@ -1,29 +1,22 @@
 {
   "name": "aba-tracker",
-  "version": "1.0.0",
-  "description": "A behavior tracking application for Special Education professionals using the ABC model with AI-powered voice transcription",
+  "version": "2.0.0",
+  "description": "ABA Behavior Tracking App with AI-powered voice transcription - Built with React",
   "author": "Rafay",
   "license": "MIT",
   "private": true,
   "type": "module",
-  "keywords": [
-    "education",
-    "special-education",
-    "behavior-tracking",
-    "abc-model",
-    "aba",
-    "openai",
-    "whisper"
-  ],
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "dependencies": {},
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
   "devDependencies": {
-    "@vercel/node": "^5.5.23"
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.0"
   }
 }
