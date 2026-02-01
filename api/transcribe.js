@@ -114,6 +114,8 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // Prevent caching of API responses
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
@@ -130,16 +132,18 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server not configured. OPENAI_API_KEY is missing.' });
     }
     
-    console.log('Transcribe endpoint called, API key present:', !!apiKey);
-    
     // Rate limiting
     const ip = getClientIP(req);
+    const today = getTodayKey();
     const rateLimit = checkRateLimit(ip);
+    
+    console.log('Transcribe request:', { ip, today, allowed: rateLimit.allowed, remaining: rateLimit.remaining, mapSize: rateLimitMap.size });
     
     res.setHeader('X-RateLimit-Limit', RATE_LIMIT);
     res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
     
     if (!rateLimit.allowed) {
+        console.log('Rate limit exceeded for IP:', ip);
         return res.status(429).json({ 
             error: 'Rate limit exceeded. Please try again tomorrow.',
             retryAfter: '24 hours'
