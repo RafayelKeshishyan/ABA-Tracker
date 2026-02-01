@@ -1,7 +1,7 @@
 {
-  "name": "aba-tracker",
+  "name": "abcscribe",
   "version": "2.0.0",
-  "description": "ABA Behavior Tracking App with AI-powered voice transcription - Built with React",
+  "description": "ABCScribe - AI-powered voice-to-ABC documentation for behavior tracking",
   "author": "Rafay",
   "license": "MIT",
   "private": true,

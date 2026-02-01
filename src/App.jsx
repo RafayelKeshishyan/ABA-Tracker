@@ -126,8 +126,8 @@ function App() {
   return (
     <div className="container">
       <header className="header">
-        <h1>📋 ABA Tracker</h1>
-        <p>Student Behavior Tracking with AI-Powered Voice Input</p>
+        <h1>✍️ ABCScribe</h1>
+        <p>AI-Powered Voice Logger for Behavior Documentation</p>
       </header>
 
       <StudentForm onAddStudent={addStudent} />

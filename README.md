@@ -1,25 +1,32 @@
-# ABA Tracker
+# ABCScribe
 
-A modern React application for Special Education professionals to track student behavior using the ABC (Antecedent-Behavior-Consequence) model with AI-powered voice transcription.
+AI-powered voice-to-text documentation for behavior tracking. Speak naturally about incidents and let AI automatically extract ABC (Antecedent-Behavior-Consequence) data.
 
 ![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?logo=vite)
 ![OpenAI](https://img.shields.io/badge/OpenAI-Whisper%20%2B%20GPT--4o--mini-412991?logo=openai)
 ![Vercel](https://img.shields.io/badge/Deployed-Vercel-black?logo=vercel)
 
+## The Problem
+
+Special Education professionals spend **5-10 minutes** manually typing each behavioral incident into ABC format. With multiple incidents daily, documentation becomes a burden that takes time away from students.
+
+## The Solution
+
+**ABCScribe** lets you speak naturally about what happened. AI handles the rest:
+
+1. **Record** - Click the microphone and describe the incident
+2. **Transcribe** - OpenAI Whisper converts speech to text
+3. **Parse** - GPT-4o-mini extracts ABC components automatically
+4. **Done** - Review and save in under 60 seconds
+
 ## Features
 
-### AI-Powered Voice Transcription
-- **One-click recording** - Speak naturally about behavioral incidents
-- **OpenAI Whisper** - Professional-grade speech-to-text transcription
-- **GPT-4o-mini parsing** - Automatically extracts ABC data from natural speech
-- **60-second workflow** - What used to take 5-10 minutes of typing
-
-### Student & Incident Management
-- Add, edit, and delete student profiles
-- Track incidents with full ABC documentation
-- Color-coded labels for quick visual scanning
-- Persistent storage via localStorage
+- **Voice Recording** - One-click audio capture
+- **AI Transcription** - OpenAI Whisper speech-to-text
+- **Smart Parsing** - GPT extracts Antecedent, Behavior, Consequence, Intervention, Notes
+- **Student Management** - Organize incidents by student
+- **Persistent Storage** - Data saved locally in browser
 
 ## Tech Stack
 
@@ -34,24 +41,24 @@ A modern React application for Special Education professionals to track student 
 ```
 src/
 ├── components/
-│   ├── StudentForm.jsx      # Add new students
-│   ├── StudentCard.jsx      # Display student with incidents
-│   ├── IncidentForm.jsx     # Log new incidents
-│   ├── IncidentCard.jsx     # Display incident details
-│   ├── RecordingButton.jsx  # Voice recording control
+│   ├── StudentForm.jsx       # Add new students
+│   ├── StudentCard.jsx       # Display student with incidents
+│   ├── IncidentForm.jsx      # Log new incidents
+│   ├── IncidentCard.jsx      # Display incident details
+│   ├── RecordingButton.jsx   # Voice recording control
 │   ├── TranscriptionModal.jsx # AI transcription UI
-│   └── EditModal.jsx        # Edit students/incidents
+│   └── EditModal.jsx         # Edit students/incidents
 ├── hooks/
-│   ├── useLocalStorage.js   # Persistent state hook
-│   └── useRecording.js      # Audio recording hook
+│   ├── useLocalStorage.js    # Persistent state hook
+│   └── useRecording.js       # Audio recording hook
 ├── styles/
-│   └── index.css            # Global styles
-├── App.jsx                  # Main application
-└── main.jsx                 # Entry point
+│   └── index.css             # Global styles
+├── App.jsx                   # Main application
+└── main.jsx                  # Entry point
 
 api/
-├── transcribe.js            # Whisper API endpoint
-└── parse.js                 # GPT parsing endpoint
+├── transcribe.js             # Whisper API endpoint
+└── parse.js                  # GPT parsing endpoint
 ```
 
 ## Getting Started
@@ -64,8 +71,8 @@ api/
 
 ```bash
 # Clone the repository
-git clone https://github.com/RafayelKeshishyan/ABA-Tracker.git
-cd ABA-Tracker
+git clone https://github.com/RafayelKeshishyan/ABCScribe.git
+cd ABCScribe
 
 # Install dependencies
 npm install
@@ -79,7 +86,7 @@ npm run dev
 
 ### Deployment
 
-Deploy to Vercel with one click:
+Deploy to Vercel:
 
 1. Push to GitHub
 2. Import project in Vercel
@@ -96,7 +103,7 @@ Converts audio to text using OpenAI Whisper.
 { "audio": "base64...", "filename": "recording.webm" }
 
 // Response
-{ "text": "The student was asked to..." }
+{ "text": "The student was asked to complete a worksheet..." }
 ```
 
 ### POST /api/parse
@@ -104,26 +111,30 @@ Parses transcription into ABC format using GPT-4o-mini.
 
 ```json
 // Request
-{ "transcription": "The student was asked to..." }
+{ "transcription": "The student was asked to complete a worksheet..." }
 
 // Response
 {
   "parsed": {
     "antecedent": "Student was asked to complete worksheet",
-    "behavior": "Threw pencil and yelled",
+    "behavior": "Threw pencil and yelled 'I can't do this'",
     "consequence": "Teacher redirected to calm corner",
-    "intervention": "Break in calm corner",
-    "notes": "Calmed down after 5 minutes"
+    "intervention": "5-minute break in calm corner",
+    "notes": "Student calmed down after break"
   }
 }
 ```
 
-## Usage
+## Example Voice Input
 
-1. **Add a student** - Enter name and grade level
-2. **Log an incident** - Select student, set time/location
-3. **Record voice** - Click microphone, describe what happened naturally
-4. **Review & submit** - AI fills the form, review and save
+> "So Marcus was in the hallway and he didn't want to go back to class, kept saying no. Then he just sat down on the floor. I tried to get him up but he wasn't having it. Eventually got him to move with a sticker promise. This was right after lunch."
+
+**AI Output:**
+- **Antecedent:** Student was asked to return to class after lunch
+- **Behavior:** Refused verbally, sat down on floor in hallway
+- **Consequence:** Staff attempted redirection, used sticker reward
+- **Intervention:** Sticker reward system
+- **Notes:** Incident occurred in hallway, post-lunch transition
 
 ## License
 
@@ -131,4 +142,4 @@ MIT
 
 ---
 
-**Built for Special Education professionals**
+**Built for Special Education professionals** - Less paperwork, more time with students.
