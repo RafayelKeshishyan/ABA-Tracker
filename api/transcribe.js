@@ -10,7 +10,15 @@
 // Simple in-memory rate limiting (resets on cold start/redeploy)
 const rateLimitMap = new Map();
 const RATE_LIMIT = 50; // requests per IP per day
-const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Get the current date string (YYYY-MM-DD) for rate limit key
+ * This ensures rate limits reset at midnight local server time
+ * @returns {string}
+ */
+function getTodayKey() {
+    return new Date().toISOString().split('T')[0];
+}
 
 /**
  * Check if request is within rate limits
@@ -18,12 +26,19 @@ const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
  * @returns {{ allowed: boolean, remaining: number }}
  */
 function checkRateLimit(ip) {
-    const key = `transcribe:${ip}`;
-    const now = Date.now();
+    const today = getTodayKey();
+    const key = `transcribe:${ip}:${today}`;
     const record = rateLimitMap.get(key);
     
-    if (!record || now - record.timestamp > RATE_LIMIT_WINDOW) {
-        rateLimitMap.set(key, { count: 1, timestamp: now });
+    // Clean up old entries from previous days
+    for (const [k] of rateLimitMap) {
+        if (!k.endsWith(today)) {
+            rateLimitMap.delete(k);
+        }
+    }
+    
+    if (!record) {
+        rateLimitMap.set(key, { count: 1 });
         return { allowed: true, remaining: RATE_LIMIT - 1 };
     }
     
